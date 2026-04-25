@@ -72,6 +72,16 @@ pre-commit run --all-files
 
 `npm install` picks up pinned JS dev tools from `package.json` (ESLint, Prettier, TypeScript) for local editor and script use. CI installs the same tools with `npm install` inside the workflow.
 
+## Go: `golangci-lint` v2
+
+The shared Go config uses **`version: "2"`**, so you need the **golangci-lint v2** binary (v1 will error on that file). Install or upgrade:
+
+```bash
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+```
+
+CI installs the same module path in the reusable workflow.
+
 ## C++: `compile_commands.json` and `clang-tidy`
 
 - `clang-tidy` is slow; in CI it runs only on **changed** C++ files in a pull request, and only if a compilation database is present.
