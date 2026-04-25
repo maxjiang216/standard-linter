@@ -1,31 +1,58 @@
+# golangci-lint v2 (requires explicit version: "2" for golangci-lint 2.x).
+# Skips `node_modules/` (e.g. npm packages that ship Go) and `vendor/`.
+version: "2"
+
 run:
-  timeout: 5m
   tests: true
+  timeout: 5m
 
 linters:
+  default: none
   enable:
     - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
-    - gofmt
     - gosec
     - misspell
     - unconvert
     - unparam
-
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  govet:
-    enable-all: true
-  gofmt:
-    simplify: true
-  lll:
-    line-length: 100
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    govet:
+      enable-all: true
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - node_modules
+      - vendor
+      - third_party$
+      - builtin$
+      - examples$
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - node_modules
+      - vendor
+      - third_party$
+      - builtin$
+      - examples$
