@@ -1,0 +1,17 @@
+line-length = 100
+indent-width = 4
+target-version = "py311"
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
+ignore = ["E501"]
+fixable = ["ALL"]
+
+[lint.isort]
+combine-as-imports = true

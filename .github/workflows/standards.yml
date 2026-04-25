@@ -1,0 +1,225 @@
+name: Code Standards
+
+on:
+  workflow_call:
+    inputs:
+      python:
+        type: boolean
+        default: true
+      cpp:
+        type: boolean
+        default: true
+      rust:
+        type: boolean
+        default: true
+      javascript:
+        type: boolean
+        default: true
+      go:
+        type: boolean
+        default: true
+      node-version:
+        type: string
+        default: "22"
+      python-version:
+        type: string
+        default: "3.11"
+
+jobs:
+  standards:
+    name: Format, lint, and bug checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout consumer repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve standards repo and ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow_ref="${{ github.workflow_ref }}"
+          standards_repo="${workflow_ref%%/.github/workflows/*}"
+          standards_ref="${workflow_ref##*@}"
+          echo "RAW_BASE=https://raw.githubusercontent.com/${standards_repo}/${standards_ref}" >> "${GITHUB_ENV}"
+
+      - name: Download standards configs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .code-standards/{python,cpp,rust,javascript,go}
+          curl -fsSL "${RAW_BASE}/configs/python/ruff.toml" -o .code-standards/python/ruff.toml
+          curl -fsSL "${RAW_BASE}/configs/python/mypy.ini" -o .code-standards/python/mypy.ini
+          curl -fsSL "${RAW_BASE}/configs/cpp/.clang-format" -o .code-standards/cpp/.clang-format
+          curl -fsSL "${RAW_BASE}/configs/cpp/.clang-tidy" -o .code-standards/cpp/.clang-tidy
+          curl -fsSL "${RAW_BASE}/configs/cpp/cppcheck.suppressions" -o .code-standards/cpp/cppcheck.suppressions
+          curl -fsSL "${RAW_BASE}/configs/rust/rustfmt.toml" -o .code-standards/rust/rustfmt.toml
+          curl -fsSL "${RAW_BASE}/configs/rust/clippy.toml" -o .code-standards/rust/clippy.toml
+          curl -fsSL "${RAW_BASE}/configs/javascript/prettier.config.cjs" -o .code-standards/javascript/prettier.config.cjs
+          curl -fsSL "${RAW_BASE}/configs/javascript/eslint.config.mjs" -o .code-standards/javascript/eslint.config.mjs
+          curl -fsSL "${RAW_BASE}/configs/javascript/tsconfig.lint.json" -o .code-standards/javascript/tsconfig.lint.json
+          curl -fsSL "${RAW_BASE}/configs/go/.golangci.yml" -o .code-standards/go/.golangci.yml
+
+      - name: Detect changed C++ files
+        if: ${{ inputs.cpp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_sha="${{ github.event.pull_request.base.sha || github.event.before || github.sha }}"
+          git diff --name-only --diff-filter=ACMRT "${base_sha}" "${{ github.sha }}" -- \
+            "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hh" "*.hpp" "*.hxx" \
+            > .code-standards/cpp/changed-files.txt || true
+          cat .code-standards/cpp/changed-files.txt
+
+      - name: Set up Python
+        if: ${{ inputs.python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install Python tools
+        if: ${{ inputs.python }}
+        run: python -m pip install --upgrade ruff mypy
+
+      - name: Set up Node
+        if: ${{ inputs.javascript }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install JavaScript tools
+        if: ${{ inputs.javascript }}
+        # Pin major versions to avoid peer-resolution drift between eslint and @eslint/js.
+        run: |
+          npm install --no-save \
+            "prettier@3" \
+            "eslint@9" \
+            "@eslint/js@9" \
+            "typescript@5" \
+            "typescript-eslint@8"
+
+      - name: Set up Go
+        if: ${{ inputs.go }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install Go tools
+        if: ${{ inputs.go }}
+        run: |
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          echo "$(go env GOPATH)/bin" >> "${GITHUB_PATH}"
+
+      - name: Set up Rust
+        if: ${{ inputs.rust }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install C++ tools
+        if: ${{ inputs.cpp }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format clang-tidy cppcheck
+
+      - name: Format check - Python
+        if: ${{ inputs.python }}
+        run: ruff format --check --config .code-standards/python/ruff.toml .
+
+      - name: Format check - C++
+        if: ${{ inputs.cpp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hh" "*.hpp" "*.hxx")
+          if [ "${#files[@]}" -gt 0 ]; then
+            clang-format --dry-run --Werror --style="file:.code-standards/cpp/.clang-format" "${files[@]}"
+          fi
+
+      - name: Format check - Rust
+        if: ${{ inputs.rust }}
+        run: |
+          if [ -f Cargo.toml ]; then
+            cargo fmt --all -- --check --config-path .code-standards/rust/rustfmt.toml
+          fi
+
+      - name: Format check - JavaScript
+        if: ${{ inputs.javascript }}
+        run: npx prettier --check . --config .code-standards/javascript/prettier.config.cjs
+
+      - name: Format check - Go
+        if: ${{ inputs.go }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="$(gofmt -l .)"
+          if [ -n "${files}" ]; then
+            echo "${files}"
+            exit 1
+          fi
+
+      - name: Lint - Python
+        if: ${{ inputs.python }}
+        run: ruff check --config .code-standards/python/ruff.toml .
+
+      - name: Lint - C++ changed files with clang-tidy
+        if: ${{ inputs.cpp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          compile_db=""
+          [ -f compile_commands.json ] && compile_db="."
+          [ -f build/compile_commands.json ] && compile_db="build"
+
+          if [ ! -s .code-standards/cpp/changed-files.txt ]; then
+            echo "No changed C++ files."
+            exit 0
+          fi
+
+          if [ -z "${compile_db}" ]; then
+            echo "::warning::No compile_commands.json found; skipping clang-tidy."
+            exit 0
+          fi
+
+          while IFS= read -r file; do
+            [ -n "${file}" ] || continue
+            [ -f "${file}" ] || continue
+            clang-tidy "${file}" -p "${compile_db}" --config-file .code-standards/cpp/.clang-tidy
+          done < .code-standards/cpp/changed-files.txt
+
+      - name: Lint - Rust
+        if: ${{ inputs.rust }}
+        run: |
+          if [ -f Cargo.toml ]; then
+            cp .code-standards/rust/clippy.toml clippy.toml
+            cargo clippy --all-targets --all-features -- -D warnings
+          fi
+
+      - name: Lint - JavaScript
+        if: ${{ inputs.javascript }}
+        run: npx eslint . --config .code-standards/javascript/eslint.config.mjs
+
+      - name: Lint and bug checks - Go
+        if: ${{ inputs.go }}
+        run: golangci-lint run --config .code-standards/go/.golangci.yml ./...
+
+      - name: Type and bug check - Python
+        if: ${{ inputs.python }}
+        run: mypy --config-file .code-standards/python/mypy.ini .
+
+      - name: Memory and bug check - C++
+        if: ${{ inputs.cpp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hh" "*.hpp" "*.hxx")
+          if [ "${#files[@]}" -gt 0 ]; then
+            cppcheck --enable=all --inline-suppr --error-exitcode=1 \
+              --suppressions-list=.code-standards/cpp/cppcheck.suppressions \
+              "${files[@]}"
+          fi
+
+      - name: Type and bug check - JavaScript
+        if: ${{ inputs.javascript }}
+        run: npx tsc --noEmit --project .code-standards/javascript/tsconfig.lint.json

@@ -1,0 +1,18 @@
+# Dependencies / build
+node_modules
+target
+.venv
+.mypy_cache
+.ruff_cache
+dist
+build
+coverage
+.next
+out
+vendor
+
+# Avoid formatting generated or vendored files
+package-lock.json
+
+# Local copy of shared configs
+.code-standards

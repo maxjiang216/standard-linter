@@ -1,0 +1,21 @@
+# Runs the shared Code Standards checks on this repository (self-test).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  standards:
+    uses: ./.github/workflows/standards.yml
+    with:
+      python: true
+      cpp: true
+      rust: true
+      javascript: true
+      go: true
