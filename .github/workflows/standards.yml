@@ -217,6 +217,7 @@ jobs:
           mapfile -t files < <(git ls-files "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hh" "*.hpp" "*.hxx")
           if [ "${#files[@]}" -gt 0 ]; then
             cppcheck --enable=all --inline-suppr --error-exitcode=1 \
+              --suppress=unmatchedSuppression \
               --suppressions-list=.code-standards/cpp/cppcheck.suppressions \
               "${files[@]}"
           fi
