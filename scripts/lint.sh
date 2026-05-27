@@ -59,17 +59,6 @@ skip_tool() {
   ((skipped++))
 }
 
-# Returns true if the given language should be checked.
-# Avoids calling in if-conditions to keep set -e intact (SC2310).
-lang_active() {
-  local lang="$1"
-  local active=false
-  if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "${lang}" ]]; then
-    active=true
-  fi
-  [[ "${active}" == true ]]
-}
-
 gofmt_check() {
   local files
   files=$(gofmt -l .)
@@ -81,8 +70,19 @@ gofmt_check() {
 
 cd "${REPO_ROOT}"
 
+# Precompute which languages are active so no function is called inside an
+# if-condition (shellcheck SC2310).
+DO_PYTHON=false; DO_CPP=false; DO_RUST=false
+DO_JS=false;     DO_GO=false;  DO_BASH=false
+if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "python" ]]; then DO_PYTHON=true; fi
+if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "cpp"    ]]; then DO_CPP=true;    fi
+if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "rust"   ]]; then DO_RUST=true;   fi
+if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "js"     ]]; then DO_JS=true;     fi
+if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "go"     ]]; then DO_GO=true;     fi
+if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "bash"   ]]; then DO_BASH=true;   fi
+
 # ── Python ────────────────────────────────────────────────────────────────────
-if lang_active python; then
+if [[ "${DO_PYTHON}" == true ]]; then
   mapfile -t PY_FILES < <(find . -name "*.py" \
     -not -path "./.git/*" -not -path "./.code-standards/*" 2>/dev/null)
   if [[ "${#PY_FILES[@]}" -gt 0 ]]; then
@@ -110,7 +110,7 @@ if lang_active python; then
 fi
 
 # ── C++ ───────────────────────────────────────────────────────────────────────
-if lang_active cpp; then
+if [[ "${DO_CPP}" == true ]]; then
   mapfile -t CPP_FILES < <(git ls-files \
     "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hh" "*.hpp" "*.hxx" 2>/dev/null)
   if [[ "${#CPP_FILES[@]}" -gt 0 ]]; then
@@ -164,7 +164,7 @@ if lang_active cpp; then
 fi
 
 # ── Rust ──────────────────────────────────────────────────────────────────────
-if lang_active rust && [[ -f Cargo.toml ]]; then
+if [[ "${DO_RUST}" == true ]] && [[ -f Cargo.toml ]]; then
   if command -v cargo > /dev/null 2>&1; then
     if [[ "${FIX}" == true ]]; then
       run_check "rust: rustfmt" \
@@ -186,7 +186,7 @@ if lang_active rust && [[ -f Cargo.toml ]]; then
 fi
 
 # ── JavaScript / TypeScript ───────────────────────────────────────────────────
-if lang_active js; then
+if [[ "${DO_JS}" == true ]]; then
   mapfile -t JS_FILES < <(git ls-files \
     "*.ts" "*.tsx" "*.js" "*.jsx" 2>/dev/null)
   if [[ "${#JS_FILES[@]}" -gt 0 ]]; then
@@ -211,7 +211,7 @@ if lang_active js; then
 fi
 
 # ── Go ────────────────────────────────────────────────────────────────────────
-if lang_active go && [[ -f go.mod ]]; then
+if [[ "${DO_GO}" == true ]] && [[ -f go.mod ]]; then
   if command -v gofmt > /dev/null 2>&1; then
     if [[ "${FIX}" == true ]]; then
       mapfile -t GO_FILES < <(find . -name "*.go" -not -path "./.git/*" 2>/dev/null)
@@ -232,7 +232,7 @@ if lang_active go && [[ -f go.mod ]]; then
 fi
 
 # ── Bash ──────────────────────────────────────────────────────────────────────
-if lang_active bash; then
+if [[ "${DO_BASH}" == true ]]; then
   mapfile -t SH_FILES < <(git ls-files "*.sh" "*.bash" 2>/dev/null)
   if [[ "${#SH_FILES[@]}" -gt 0 ]]; then
     if command -v shellcheck > /dev/null 2>&1; then
