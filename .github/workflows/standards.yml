@@ -226,7 +226,7 @@ jobs:
           set -euo pipefail
           mapfile -t files < <(git ls-files "*.sh" "*.bash")
           if [ "${#files[@]}" -gt 0 ]; then
-            shellcheck --rcfile .code-standards/bash/.shellcheckrc "${files[@]}"
+            shellcheck --shell=bash --enable=all --exclude=SC2312 "${files[@]}"
           fi
 
       - name: Type and bug check - Python

@@ -85,6 +85,6 @@ repos:
         files: "\\.go$"
       - id: shellcheck
         name: shellcheck
-        entry: shellcheck --rcfile .code-standards/bash/.shellcheckrc
+        entry: shellcheck --shell=bash --enable=all --exclude=SC2312
         language: system
         files: "\\.(sh|bash)$"

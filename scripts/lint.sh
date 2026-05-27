@@ -222,7 +222,7 @@ if need_lang bash; then
   if [[ "${#SH_FILES[@]}" -gt 0 ]]; then
     if command -v shellcheck > /dev/null 2>&1; then
       run_check "bash: shellcheck" \
-        shellcheck --rcfile "${CS}/bash/.shellcheckrc" "${SH_FILES[@]}"
+        shellcheck --shell=bash --enable=all --exclude=SC2312 "${SH_FILES[@]}"
     else
       skip_tool "shellcheck" "sudo apt-get install shellcheck"
     fi
