@@ -1,96 +1,138 @@
-# code-standards
+# standard-linter
 
-Central formatter, linter, and type/bug check configuration for multiple repositories. The goal is a **stable, uniform policy** (especially for AI-generated code) so that style and obvious issues are enforced automatically in CI and locally.
+Central formatter, linter, and type/bug-check configuration for multiple
+repositories. Consumer repos pull configs on demand — no submodules, no
+vendored tooling. Enforces a stable, uniform policy in CI and locally,
+especially for AI-generated code.
 
-## What this repository provides
+---
 
-- **Config files** under [`configs/`](configs/) for: Python, C++, Rust, JavaScript/TypeScript, and Go
-- A **reusable GitHub Actions workflow** at [`.github/workflows/standards.yml`](.github/workflows/standards.yml) that:
-  1. Downloads those configs (no submodules) into `.code-standards/`
-  2. Runs **format checks** first, then **linters**, then **type / memory / bug** tools
-- A **[`pre-commit`](.pre-commit-config.yaml)** config aligned with the same files
-- **Scripts** to bootstrap consumer repos: [`scripts/bootstrap.sh`](scripts/bootstrap.sh), [`scripts/download-configs.sh`](scripts/download-configs.sh)
-- [Docs: adoption](docs/adoption.md) and [docs: tools](docs/tools.md)
+## Install in a new repo (3 steps)
 
-## Defaults
+### Step 1 — Run bootstrap
 
-| Item            | Value                                                              |
-| --------------- | ------------------------------------------------------------------ |
-| Line length     | 100 characters                                                     |
-| Indent          | 4 spaces (Go uses `gofmt` / tabs per Go convention)                |
-| JS/TS indent    | 2 spaces                                                           |
-| Quotes          | Double quotes in Python and JavaScript/TypeScript where configured |
-| Trailing commas | On where the formatter supports it                                 |
+From the root of your repo:
 
-## Add to a new repository (fewest steps)
+```bash
+curl -fsSL https://raw.githubusercontent.com/maxjiang216/standard-linter/main/scripts/bootstrap.sh | bash
+```
 
-### A) One workflow file in the consumer repo
+This creates four files and populates `.code-standards/` (which is gitignored):
 
-1. In GitHub, create a repository (or use an existing one).
-2. Add `.github/workflows/code-standards.yml`:
+```
+your-repo/
+├── .pre-commit-config.yaml        ← pre-commit hooks for all languages
+├── .github/
+│   └── workflows/
+│       └── code-standards.yml    ← CI workflow (calls this repo's reusable workflow)
+├── CLAUDE.md                     ← coding conventions for AI agents
+└── scripts/
+    └── lint.sh                   ← local lint runner
+```
+
+### Step 2 — Set your language flags
+
+Open `.github/workflows/code-standards.yml`. It looks like this:
 
 ```yaml
 name: Code Standards
 
 on:
   pull_request:
+  push:
+    branches: [main]
 
 jobs:
   standards:
-    uses: YOUR_ORG/code-standards/.github/workflows/standards.yml@v1
+    uses: maxjiang216/standard-linter/.github/workflows/standards.yml@main
     with:
-      python: true
-      cpp: true
-      rust: true
-      javascript: true
-      go: true
+      python: true      # ← set true/false for each language your repo uses
+      cpp: false
+      rust: false
+      javascript: false
+      go: false
+      bash: true
 ```
 
-3. Commit and open a pull request. The job will fail on any check that does not follow the standard.
+Set each flag to `true` or `false`. The defaults are `python: true, bash: true`;
+everything else is `false`. Only enabled languages run in CI.
 
-Replace `YOUR_ORG` with your org or user name. Turn off any language you do not need via `with:` flags.
-
-### B) Local checks with `pre-commit` (optional but recommended)
+### Step 3 — Commit
 
 ```bash
-export STANDARDS_REPO=YOUR_ORG/code-standards
-export STANDARDS_REF=v1
-curl -fsSL "https://raw.githubusercontent.com/${STANDARDS_REPO}/${STANDARDS_REF}/scripts/bootstrap.sh" | bash
-pre-commit run --all-files
+git add .pre-commit-config.yaml \
+        .github/workflows/code-standards.yml \
+        CLAUDE.md \
+        scripts/lint.sh
+git commit -m "chore: add standard-linter"
 ```
 
-## Working **inside** this repository
+Push. CI will run on your next pull request.
 
-`pre-commit` expects `.code-standards/` to exist. For contributors, mirror `configs/` into `.code-standards/` once:
+---
+
+## Running checks locally
 
 ```bash
-bash scripts/install-local-standards.sh
-npm install
+bash scripts/lint.sh              # check everything
+bash scripts/lint.sh --fix        # auto-fix formatting, then re-check
+bash scripts/lint.sh --lang go    # check one language only
+```
+
+Missing tools are skipped with an install hint — no errors if a tool isn't
+installed locally.
+
+---
+
+## For AI agents
+
+Run `bash scripts/lint.sh` before every commit. Run `bash scripts/lint.sh --fix`
+first to auto-fix formatting, then address remaining errors manually. See
+`CLAUDE.md` for naming conventions, comment style, and language-specific rules.
+
+---
+
+## Tools per language
+
+| Language | Format | Lint | Type / bug check |
+|---|---|---|---|
+| Python | ruff | ruff | mypy (strict) |
+| C++ | clang-format | clang-tidy | cppcheck |
+| Rust | rustfmt | clippy | — |
+| JavaScript / TypeScript | prettier | eslint | tsc --noEmit |
+| Go | gofmt | golangci-lint v2 | — |
+| Bash | — | shellcheck | — |
+
+## Style defaults
+
+| Language | Line length | Indent | Quotes |
+|---|---|---|---|
+| Python | 80 | 4 spaces | double |
+| C++ | 80 | 2 spaces | — |
+| Rust | 80 | 4 spaces | — |
+| JavaScript / TypeScript | 80 | 2 spaces | double |
+| Go | 80 | tabs (gofmt) | — |
+| Bash | 80 | 2 spaces | — |
+
+---
+
+## Versioning
+
+The bootstrap default is `@main`. Once this repo is stable, pin to a tag so
+updates are intentional:
+
+```yaml
+uses: maxjiang216/standard-linter/.github/workflows/standards.yml@v1
+```
+
+---
+
+## Working inside this repo
+
+```bash
+bash scripts/bootstrap.sh --configs-only   # populate .code-standards/
 pre-commit install
-pre-commit run --all-files
+bash scripts/lint.sh
 ```
 
-`npm install` picks up pinned JS dev tools from `package.json` (ESLint, Prettier, TypeScript) for local editor and script use. CI installs the same tools with `npm install` inside the workflow.
-
-## Go: `golangci-lint` v2
-
-The shared Go config uses **`version: "2"`**, so you need the **golangci-lint v2** binary (v1 will error on that file). Install or upgrade:
-
-```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-```
-
-CI installs the same module path in the reusable workflow.
-
-## C++: `compile_commands.json` and `clang-tidy`
-
-- `clang-tidy` is slow; in CI it runs only on **changed** C++ files in a pull request, and only if a compilation database is present.
-- If there is no `compile_commands.json` in the project root (or `build/compile_commands.json`), `clang-tidy` is skipped and a warning is printed. `clang-format` and `cppcheck` still run.
-
-## Releasing and versioning
-
-See [RELEASING.md](RELEASING.md). Consumer workflows should always pin a tag such as `v1` so updates are intentional.
-
-## License
-
-This repository is intended to be vendor-neutral. Add a `LICENSE` file in your own fork; default to MIT if you are unsure.
+See [RELEASING.md](RELEASING.md) for how to cut a version tag.

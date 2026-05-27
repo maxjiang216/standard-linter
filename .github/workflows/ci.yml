@@ -14,8 +14,9 @@ jobs:
   standards:
     uses: ./.github/workflows/standards.yml
     with:
-      python: true
-      cpp: true
-      rust: true
-      javascript: true
-      go: true
+      python: false
+      cpp: false
+      rust: false
+      javascript: false
+      go: false
+      bash: true

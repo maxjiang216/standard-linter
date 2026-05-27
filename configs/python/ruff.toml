@@ -1,4 +1,4 @@
-line-length = 100
+line-length = 80
 indent-width = 4
 target-version = "py311"
 
@@ -9,9 +9,15 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF"]
-ignore = ["E501"]
+select = ["E", "W", "F", "I", "B", "N", "UP", "C90", "D", "RUF", "SIM", "ANN", "PTH", "ERA"]
+ignore = ["D100", "D104", "D107", "ANN101", "ANN102", "ANN401"]
 fixable = ["ALL"]
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.mccabe]
+max-complexity = 10
 
 [lint.isort]
 combine-as-imports = true

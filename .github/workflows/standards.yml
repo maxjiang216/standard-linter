@@ -18,6 +18,9 @@ on:
       go:
         type: boolean
         default: true
+      bash:
+        type: boolean
+        default: true
       node-version:
         type: string
         default: "22"
@@ -48,18 +51,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .code-standards/{python,cpp,rust,javascript,go}
-          curl -fsSL "${RAW_BASE}/configs/python/ruff.toml" -o .code-standards/python/ruff.toml
-          curl -fsSL "${RAW_BASE}/configs/python/mypy.ini" -o .code-standards/python/mypy.ini
-          curl -fsSL "${RAW_BASE}/configs/cpp/.clang-format" -o .code-standards/cpp/.clang-format
-          curl -fsSL "${RAW_BASE}/configs/cpp/.clang-tidy" -o .code-standards/cpp/.clang-tidy
-          curl -fsSL "${RAW_BASE}/configs/cpp/cppcheck.suppressions" -o .code-standards/cpp/cppcheck.suppressions
-          curl -fsSL "${RAW_BASE}/configs/rust/rustfmt.toml" -o .code-standards/rust/rustfmt.toml
-          curl -fsSL "${RAW_BASE}/configs/rust/clippy.toml" -o .code-standards/rust/clippy.toml
+          mkdir -p .code-standards/{python,cpp,rust,javascript,go,bash}
+          curl -fsSL "${RAW_BASE}/configs/python/ruff.toml"           -o .code-standards/python/ruff.toml
+          curl -fsSL "${RAW_BASE}/configs/python/mypy.ini"            -o .code-standards/python/mypy.ini
+          curl -fsSL "${RAW_BASE}/configs/cpp/.clang-format"          -o .code-standards/cpp/.clang-format
+          curl -fsSL "${RAW_BASE}/configs/cpp/.clang-tidy"            -o .code-standards/cpp/.clang-tidy
+          curl -fsSL "${RAW_BASE}/configs/cpp/cppcheck.suppressions"  -o .code-standards/cpp/cppcheck.suppressions
+          curl -fsSL "${RAW_BASE}/configs/rust/rustfmt.toml"          -o .code-standards/rust/rustfmt.toml
+          curl -fsSL "${RAW_BASE}/configs/rust/clippy.toml"           -o .code-standards/rust/clippy.toml
           curl -fsSL "${RAW_BASE}/configs/javascript/prettier.config.cjs" -o .code-standards/javascript/prettier.config.cjs
-          curl -fsSL "${RAW_BASE}/configs/javascript/eslint.config.mjs" -o .code-standards/javascript/eslint.config.mjs
-          curl -fsSL "${RAW_BASE}/configs/javascript/tsconfig.lint.json" -o .code-standards/javascript/tsconfig.lint.json
-          curl -fsSL "${RAW_BASE}/configs/go/.golangci.yml" -o .code-standards/go/.golangci.yml
+          curl -fsSL "${RAW_BASE}/configs/javascript/eslint.config.mjs"   -o .code-standards/javascript/eslint.config.mjs
+          curl -fsSL "${RAW_BASE}/configs/javascript/tsconfig.lint.json"  -o .code-standards/javascript/tsconfig.lint.json
+          curl -fsSL "${RAW_BASE}/configs/go/.golangci.yml"           -o .code-standards/go/.golangci.yml
+          curl -fsSL "${RAW_BASE}/configs/bash/.shellcheckrc"         -o .code-standards/bash/.shellcheckrc
 
       - name: Detect changed C++ files
         if: ${{ inputs.cpp }}
@@ -123,6 +127,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format clang-tidy cppcheck
+
+      - name: Install Bash tools
+        if: ${{ inputs.bash }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
 
       - name: Format check - Python
         if: ${{ inputs.python }}
@@ -194,7 +204,11 @@ jobs:
         run: |
           if [ -f Cargo.toml ]; then
             cp .code-standards/rust/clippy.toml clippy.toml
-            cargo clippy --all-targets --all-features -- -D warnings
+            cargo clippy --all-targets --all-features \
+              -- -D warnings \
+              -W clippy::pedantic \
+              -W clippy::nursery \
+              -A clippy::module_name_repetitions
           fi
 
       - name: Lint - JavaScript
@@ -204,6 +218,16 @@ jobs:
       - name: Lint and bug checks - Go
         if: ${{ inputs.go }}
         run: golangci-lint run --config .code-standards/go/.golangci.yml ./...
+
+      - name: Lint - Bash
+        if: ${{ inputs.bash }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files "*.sh" "*.bash")
+          if [ "${#files[@]}" -gt 0 ]; then
+            shellcheck --shell=bash --enable=all --exclude=SC2312 "${files[@]}"
+          fi
 
       - name: Type and bug check - Python
         if: ${{ inputs.python }}
