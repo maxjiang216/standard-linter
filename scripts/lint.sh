@@ -59,14 +59,30 @@ skip_tool() {
   ((skipped++))
 }
 
-need_lang() {
-  [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "$1" ]]
+# Returns true if the given language should be checked.
+# Avoids calling in if-conditions to keep set -e intact (SC2310).
+lang_active() {
+  local lang="$1"
+  local active=false
+  if [[ -z "${LANG_FILTER}" || "${LANG_FILTER}" == "${lang}" ]]; then
+    active=true
+  fi
+  [[ "${active}" == true ]]
+}
+
+gofmt_check() {
+  local files
+  files=$(gofmt -l .)
+  if [[ -n "${files}" ]]; then
+    echo "${files}"
+    return 1
+  fi
 }
 
 cd "${REPO_ROOT}"
 
 # ── Python ────────────────────────────────────────────────────────────────────
-if need_lang python; then
+if lang_active python; then
   mapfile -t PY_FILES < <(find . -name "*.py" \
     -not -path "./.git/*" -not -path "./.code-standards/*" 2>/dev/null)
   if [[ "${#PY_FILES[@]}" -gt 0 ]]; then
@@ -94,7 +110,7 @@ if need_lang python; then
 fi
 
 # ── C++ ───────────────────────────────────────────────────────────────────────
-if need_lang cpp; then
+if lang_active cpp; then
   mapfile -t CPP_FILES < <(git ls-files \
     "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hh" "*.hpp" "*.hxx" 2>/dev/null)
   if [[ "${#CPP_FILES[@]}" -gt 0 ]]; then
@@ -148,7 +164,7 @@ if need_lang cpp; then
 fi
 
 # ── Rust ──────────────────────────────────────────────────────────────────────
-if need_lang rust && [[ -f Cargo.toml ]]; then
+if lang_active rust && [[ -f Cargo.toml ]]; then
   if command -v cargo > /dev/null 2>&1; then
     if [[ "${FIX}" == true ]]; then
       run_check "rust: rustfmt" \
@@ -170,7 +186,7 @@ if need_lang rust && [[ -f Cargo.toml ]]; then
 fi
 
 # ── JavaScript / TypeScript ───────────────────────────────────────────────────
-if need_lang js; then
+if lang_active js; then
   mapfile -t JS_FILES < <(git ls-files \
     "*.ts" "*.tsx" "*.js" "*.jsx" 2>/dev/null)
   if [[ "${#JS_FILES[@]}" -gt 0 ]]; then
@@ -195,14 +211,13 @@ if need_lang js; then
 fi
 
 # ── Go ────────────────────────────────────────────────────────────────────────
-if need_lang go && [[ -f go.mod ]]; then
+if lang_active go && [[ -f go.mod ]]; then
   if command -v gofmt > /dev/null 2>&1; then
     if [[ "${FIX}" == true ]]; then
       mapfile -t GO_FILES < <(find . -name "*.go" -not -path "./.git/*" 2>/dev/null)
       run_check "go: gofmt" gofmt -w "${GO_FILES[@]}"
     else
-      run_check "go: gofmt check" bash -c \
-        'files=$(gofmt -l .); [ -z "$files" ] || { echo "$files"; exit 1; }'
+      run_check "go: gofmt check" gofmt_check
     fi
   else
     skip_tool "gofmt" "install Go from https://go.dev/dl"
@@ -217,7 +232,7 @@ if need_lang go && [[ -f go.mod ]]; then
 fi
 
 # ── Bash ──────────────────────────────────────────────────────────────────────
-if need_lang bash; then
+if lang_active bash; then
   mapfile -t SH_FILES < <(git ls-files "*.sh" "*.bash" 2>/dev/null)
   if [[ "${#SH_FILES[@]}" -gt 0 ]]; then
     if command -v shellcheck > /dev/null 2>&1; then
