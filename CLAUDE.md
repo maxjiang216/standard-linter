@@ -3,15 +3,24 @@
 This repo ships linting/formatting configs and tooling to other repos.
 There is no runtime code here — no compiled binaries, no Python packages.
 
-## Working in this repo
+## Before every commit
+
+**Always run `bash scripts/lint.sh` before committing.** This repo lints its
+own shell scripts via shellcheck, and CI will reject anything it catches. Do
+not rely on CI to find errors — fix them locally first.
 
 ```bash
-bash scripts/bootstrap.sh --configs-only   # populate .code-standards/
-pre-commit install
+bash scripts/lint.sh --fix   # auto-fix what can be fixed
+bash scripts/lint.sh         # confirm everything passes
+git add ...
+git commit ...
 ```
 
-Then use `bash scripts/lint.sh` to check your changes (it lints the shell
-scripts themselves via shellcheck).
+If `.code-standards/` is missing (fresh clone), set it up once:
+
+```bash
+bash scripts/bootstrap.sh --configs-only
+```
 
 ## Structure
 
