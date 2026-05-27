@@ -30,5 +30,5 @@ target/
 # Pre-commit
 .pre-commit/
 
-# Local mirror of shared configs (from scripts/install-local-standards.sh)
+# Local mirror of shared configs (from scripts/bootstrap.sh --configs-only)
 .code-standards/
