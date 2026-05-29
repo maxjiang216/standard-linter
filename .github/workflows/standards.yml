@@ -27,6 +27,10 @@ on:
       python-version:
         type: string
         default: "3.11"
+      standards-ref:
+        description: "Ref of this standard-linter repo to fetch configs from."
+        type: string
+        default: "main"
 
 jobs:
   standards:
@@ -42,10 +46,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          workflow_ref="${{ github.workflow_ref }}"
-          standards_repo="${workflow_ref%%/.github/workflows/*}"
-          standards_ref="${workflow_ref##*@}"
-          echo "RAW_BASE=https://raw.githubusercontent.com/${standards_repo}/${standards_ref}" >> "${GITHUB_ENV}"
+          # github.workflow_ref resolves to the *calling* workflow (the consumer
+          # repo), not this reusable workflow, so it cannot be used to locate our
+          # configs — doing so 404s against the consumer's tree. Pin to this
+          # repo explicitly; the ref is overridable for tagged releases.
+          echo "RAW_BASE=https://raw.githubusercontent.com/maxjiang216/standard-linter/${{ inputs.standards-ref }}" >> "${GITHUB_ENV}"
 
       - name: Download standards configs
         shell: bash
