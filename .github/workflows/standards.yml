@@ -236,7 +236,16 @@ jobs:
 
       - name: Type and bug check - Python
         if: ${{ inputs.python }}
-        run: mypy --config-file .code-standards/python/mypy.ini .
+        shell: bash
+        run: |
+          set -euo pipefail
+          # mypy exits 2 on a tree with no .py files, unlike ruff which passes.
+          # Guard like the C++/Rust/Go steps so python:true is safe for repos
+          # that have no Python sources.
+          mapfile -t files < <(git ls-files "*.py" "*.pyi")
+          if [ "${#files[@]}" -gt 0 ]; then
+            mypy --config-file .code-standards/python/mypy.ini .
+          fi
 
       - name: Memory and bug check - C++
         if: ${{ inputs.cpp }}
